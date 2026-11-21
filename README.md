@@ -7,6 +7,7 @@ TeamSpeak 3'e <b>eklenti kurmadan</b> ekran paylaşımı: sohbete <code>!ekran</
 </p>
 
 <p align="center">
+<a href="https://github.com/kurlermert/ts3-screen-share/actions/workflows/ci.yml"><img src="https://github.com/kurlermert/ts3-screen-share/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 <img src="https://img.shields.io/badge/TeamSpeak-3%20%2F%20TeaSpeak-2580c3?logo=teamspeak&logoColor=white">
 <img src="https://img.shields.io/badge/WebRTC-WHIP%20%2F%20WHEP-333">
 <img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white">
