@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ekranını Paylaş</title>
+<link rel="stylesheet" href="ortak.css?v=1">
+</head>
+<body>
+<div class="wrap">
+  <h1>Ekranını Paylaş</h1>
+  <div class="muted" id="alt">Kanaldakiler izleme linkinden seni görecek.</div>
+
+  <div class="card" id="kart">
+    <div class="row" style="margin-bottom:16px">
+      <label>Kalite
+        <select id="kalite">
+          <option value="720_30_2500">720p 30fps</option>
+          <option value="1080_30_4000" selected>1080p 30fps</option>
+          <option value="1080_60_6000">1080p 60fps</option>
+        </select>
+      </label>
+      <label>İçerik
+        <select id="tur">
+          <option value="motion">Oyun / video (akıcı)</option>
+          <option value="detail">Yazı / kod (net)</option>
+        </select>
+      </label>
+      <label class="row" style="gap:6px"><input type="checkbox" id="ses"> Bilgisayar sesini de paylaş</label>
+    </div>
+    <div class="row">
+      <button id="basla">Ekranımı Paylaş</button>
+      <button id="dur" class="red" style="display:none">Paylaşımı Durdur</button>
+      <span class="pill"><span class="dot" id="nokta"></span><span id="durumYazi">Kapalı</span></span>
+      <span class="pill" id="izleyiciKutu" style="display:none">İzleyici: <b id="izleyici">0</b></span>
+    </div>
+    <div class="err" id="hata"></div>
+  </div>
+
+  <div class="card">
+    <div class="muted" style="margin-bottom:8px">Önizleme (sadece sen görüyorsun)</div>
+    <video id="onizle" autoplay muted playsinline></video>
+  </div>
+
+  <div class="card">
+    <div class="muted" style="margin-bottom:6px">İzleme linki (yayın başlayınca kanalındakilere otomatik gider)</div>
+    <input type="text" id="izleLink" readonly onclick="this.select()">
+  </div>
+</div>
+<script src="rtc.js?v=2"></script>
+<script>
+const oda=q("oda"), t=q("t");
+const $=id=>document.getElementById(id);
+let pc=null, stream=null, sessionUrl=null, poll=null;
+$("izleLink").value=location.origin+"/izle?oda="+oda;
+
+function setDurum(txt, live){$("durumYazi").textContent=txt;$("nokta").className="dot"+(live?" live":"");}
+function hata(m){$("hata").textContent=m||"";}
+
+(async()=>{
+  if(!/^[a-z0-9]{12}$/.test(oda)||!t){$("kart").innerHTML="<b>Link hatalı.</b> TS'te sunucu sohbetine <code>!ekran</code> yazıp yeni link al.";return;}
+  const d=await durum(oda,t);
+  if(!d.var||!d.sahip_mi){$("kart").innerHTML="<b>Bu link geçersiz ya da süresi dolmuş.</b> TS'te <code>!ekran</code> yazıp yeni link al.";return;}
+})();
+
+async function basla(){
+  hata("");
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){hata("Bu tarayıcı ekran paylaşımını desteklemiyor. Bilgisayardan Chrome, Edge veya Firefox ile aç.");return;}
+  const [h,fps,kbps]=$("kalite").value.split("_").map(Number);
+  try{
+    stream=await navigator.mediaDevices.getDisplayMedia({
+      video:{height:{ideal:h,max:h},frameRate:{ideal:fps,max:fps}},
+      audio:$("ses").checked
+    });
+  }catch(e){hata("Ekran seçilmedi.");return;}
+  const v=stream.getVideoTracks()[0];
+  try{v.contentHint=$("tur").value;}catch(_){}
+  v.addEventListener("ended",dur);
+  $("onizle").srcObject=stream;
+
+  pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+  for(const tr of stream.getTracks()) pc.addTransceiver(tr,{direction:"sendonly",streams:[stream]});
+  pc.addEventListener("connectionstatechange",()=>{
+    if(pc&&(pc.connectionState==="failed")){hata("Bağlantı koptu. Tekrar paylaşmayı dene.");dur();}
+  });
+  setDurum("Bağlanıyor…",false);
+  $("basla").disabled=true;
+  try{
+    sessionUrl=await sdpExchange(pc,"/m/"+oda+"/whip",{"Authorization":"Bearer "+t});
+  }catch(e){
+    hata(e.status===401?"Yetki yok: link geçersiz. TS'te !ekran yazıp yeni link al.":"Sunucuya bağlanılamadı ("+e.message+").");
+    dur();return;
+  }
+  for(const s of pc.getSenders()){
+    if(s.track&&s.track.kind==="video"){
+      const p=s.getParameters();
+      if(!p.encodings||!p.encodings.length) p.encodings=[{}];
+      p.encodings[0].maxBitrate=kbps*1000;
+      p.encodings[0].maxFramerate=fps;
+      p.degradationPreference=$("tur").value==="motion"?"maintain-framerate":"maintain-resolution";
+      try{await s.setParameters(p);}catch(_){}
+    }
+  }
+  setDurum("CANLI",true);
+  $("basla").style.display="none";$("dur").style.display="";$("izleyiciKutu").style.display="";
+  poll=setInterval(async()=>{try{const d=await durum(oda,t);$("izleyici").textContent=d.izleyici||0;}catch(_){}} ,4000);
+}
+
+function dur(){
+  if(sessionUrl){fetch(sessionUrl,{method:"DELETE",headers:{"Authorization":"Bearer "+t}}).catch(()=>{});sessionUrl=null;}
+  if(pc){pc.close();pc=null;}
+  if(stream){stream.getTracks().forEach(x=>x.stop());stream=null;}
+  if(poll){clearInterval(poll);poll=null;}
+  $("onizle").srcObject=null;
+  setDurum("Kapalı",false);
+  $("basla").disabled=false;$("basla").style.display="";$("dur").style.display="none";$("izleyiciKutu").style.display="none";
+}
+$("basla").onclick=basla;
+$("dur").onclick=dur;
+window.addEventListener("beforeunload",dur);
+</script>
+</body>
+</html>

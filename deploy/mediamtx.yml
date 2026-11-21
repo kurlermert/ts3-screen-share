@@ -1,0 +1,40 @@
+# mediamtx (https://github.com/bluenviron/mediamtx) - tested with v1.21.4
+# Only WebRTC (WHIP/WHEP) is enabled. Every publish/read is authorized by the bot.
+logLevel: info
+logDestinations: [stdout]
+readTimeout: 10s
+writeTimeout: 10s
+
+authMethod: http
+authHTTPAddress: http://127.0.0.1:8890/auth
+authHTTPExclude: []
+
+api: true
+apiAddress: 127.0.0.1:9997
+metrics: false
+pprof: false
+playback: false
+rtsp: false
+rtmp: false
+hls: false
+srt: false
+moq: false
+
+webrtc: true
+webrtcAddress: 127.0.0.1:8889          # reached through nginx (/m/)
+webrtcAllowOrigins: ["*"]
+webrtcTrustedProxies: ["127.0.0.1"]     # so the auth backend sees the real client IP
+webrtcLocalUDPAddress: :8189            # open UDP 8189 in the firewall
+webrtcLocalTCPAddress: :8189            # TCP fallback for strict networks
+webrtcIPsFromInterfaces: false
+webrtcAdditionalHosts: [203.0.113.10]   # <-- your server's public IP
+webrtcICEServers2: []
+
+pathDefaults:
+  source: publisher
+  overridePublisher: true
+  runOnAvailable: curl -s -m 5 -X POST http://127.0.0.1:8890/hook/available/$MTX_PATH
+  runOnUnavailable: curl -s -m 5 -X POST http://127.0.0.1:8890/hook/unavailable/$MTX_PATH
+
+paths:
+  "~^[a-z0-9]{12}$":

@@ -1,0 +1,18 @@
+{
+  "query_host": "127.0.0.1",
+  "query_port": 10011,
+  "query_user": "serveradmin",
+  "query_pass": "CHANGE_ME",
+  "sids": [1],
+  "nickname": "ScreenShareBot",
+  "site": "https://screen.example.com",
+  "http_host": "127.0.0.1",
+  "http_port": 8890,
+  "mtx_api": "http://127.0.0.1:9997",
+  "state_file": "/opt/screenshare/state.json",
+  "log_file": "/var/log/screenshare_bot.log",
+  "room_ttl_hours": 6,
+  "live_group_name": "CANLI YAYIN",
+  "live_name_in_tree": 1,
+  "ip_check": true
+}

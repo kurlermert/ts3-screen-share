@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ekran Paylaşımı İzle</title>
+<link rel="stylesheet" href="ortak.css?v=1">
+<style>
+.wrap{max-width:1280px}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+#sahne{position:relative}
+#bekle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--muted);text-align:center;padding:16px}
+video{aspect-ratio:16/9;object-fit:contain}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div>
+      <h1 id="baslik">Ekran paylaşımı</h1>
+      <span class="pill"><span class="dot" id="nokta"></span><span id="durumYazi">Bağlanıyor…</span></span>
+    </div>
+    <div class="row">
+      <button class="ghost" id="sesBtn" style="display:none">🔇 Sesi aç</button>
+      <button class="ghost" id="tamBtn">Tam ekran</button>
+    </div>
+  </div>
+  <div id="sahne">
+    <video id="v" autoplay muted playsinline></video>
+    <div id="bekle"><b id="bekleBaslik">Yayın bekleniyor</b><span id="bekleAlt">Paylaşan kişi yayını başlatınca görüntü otomatik gelecek.</span></div>
+  </div>
+</div>
+<script src="rtc.js?v=2"></script>
+<script>
+const oda=q("oda"), k=q("k");
+const $=id=>document.getElementById(id);
+let pc=null, sessionUrl=null, deneme=null, bagli=false;
+
+function setDurum(txt, live){$("durumYazi").textContent=txt;$("nokta").className="dot"+(live?" live":"");}
+function bekle(goster, b, a){$("bekle").style.display=goster?"flex":"none";if(b)$("bekleBaslik").textContent=b;if(a!==undefined)$("bekleAlt").textContent=a;}
+
+function temizle(){
+  if(sessionUrl){fetch(sessionUrl,{method:"DELETE"}).catch(()=>{});sessionUrl=null;}
+  if(pc){pc.close();pc=null;}
+  bagli=false;
+}
+
+async function baglan(){
+  temizle();
+  const d=await durum(oda,"",k).catch(()=>({var:false}));
+  if(!d.var){setDurum("Geçersiz",false);bekle(true,d.sebep||"Bu link geçersiz ya da süresi dolmuş.","");return planla(15000);}
+  $("baslik").textContent=d.sahip+" – ekran paylaşımı";
+  if(d.izin===false){setDurum("Erişim yok",false);bekle(true,"İzleme izni yok",d.sebep||"");return planla(5000);}
+  if(!d.canli){setDurum("Yayın yok",false);bekle(true,"Yayın bekleniyor","Paylaşan kişi yayını başlatınca görüntü otomatik gelecek.");return planla(3000);}
+  pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+  pc.addTransceiver("video",{direction:"recvonly"});
+  pc.addTransceiver("audio",{direction:"recvonly"});
+  const ms=new MediaStream();
+  pc.ontrack=e=>{ms.addTrack(e.track);$("v").srcObject=ms;if(e.track.kind==="audio")$("sesBtn").style.display="";};
+  pc.addEventListener("connectionstatechange",()=>{
+    if(!pc)return;
+    if(pc.connectionState==="connected"){bagli=true;setDurum("CANLI",true);bekle(false);}
+    if(["failed","disconnected","closed"].includes(pc.connectionState)){setDurum("Yeniden bağlanıyor…",false);bekle(true,"Bağlantı koptu","Yeniden bağlanılıyor…");planla(2000);}
+  });
+  try{
+    sessionUrl=await sdpExchange(pc,"/m/"+oda+"/whep?k="+encodeURIComponent(k),{"Authorization":"Bearer "+k});
+  }catch(e){
+    temizle();
+    setDurum("Yayın yok",false);bekle(true,"Yayın bekleniyor","Paylaşan kişi yayını başlatınca görüntü otomatik gelecek.");
+    return planla(3000);
+  }
+  $("v").play().catch(()=>{});
+}
+function planla(ms){clearTimeout(deneme);deneme=setTimeout(baglan,ms);}
+
+// yayin bitince/yeniden baslayinca yakala
+setInterval(async()=>{
+  if(!bagli)return;
+  const d=await durum(oda,"",k).catch(()=>null);
+  if(d&&d.var&&d.izin===false){setDurum("Erişim yok",false);bekle(true,"İzleme izni yok",d.sebep||"");temizle();planla(5000);return;}
+  if(d&&d.var&&!d.canli){setDurum("Yayın bitti",false);bekle(true,"Yayın bitti","Yeniden başlarsa otomatik bağlanılacak.");temizle();planla(3000);}
+},5000);
+
+$("sesBtn").onclick=()=>{const v=$("v");v.muted=!v.muted;$("sesBtn").textContent=v.muted?"🔇 Sesi aç":"🔊 Sesi kapat";};
+$("tamBtn").onclick=()=>{const s=$("sahne");(document.fullscreenElement?document.exitFullscreen():(s.requestFullscreen||s.webkitRequestFullscreen).call(s));};
+$("v").ondblclick=()=>$("tamBtn").click();
+window.addEventListener("beforeunload",temizle);
+
+if(!/^[a-z0-9]{12}$/.test(oda)){setDurum("Geçersiz",false);bekle(true,"Link hatalı.","");}
+else baglan();
+</script>
+</body>
+</html>

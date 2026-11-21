@@ -1,0 +1,15 @@
+[Unit]
+Description=TeamSpeak screen-share bot
+After=network.target screenshare-mediamtx.service
+
+[Service]
+User=screenshare
+Group=screenshare
+WorkingDirectory=/opt/screenshare
+Environment=SCREENSHARE_CONFIG=/opt/screenshare/config.json
+ExecStart=/usr/bin/python3 -u /opt/screenshare/screenshare_bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

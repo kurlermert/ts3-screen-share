@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+bot/config.json
+bot/state.json
+*.log
+mediamtx
+mediamtx_*.tar.gz
